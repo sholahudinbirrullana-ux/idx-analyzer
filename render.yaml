@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: idx-analyzer
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/status
+    envVars:
+      - key: FETCH_MODE
+        value: auto
+      - key: NODE_VERSION
+        value: "20"

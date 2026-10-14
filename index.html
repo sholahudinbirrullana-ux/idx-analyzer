@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDX Analyzer — Analisis Saham BEI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="logo">
+            <div class="logo-mark">IDX</div>
+            <div class="logo-text">Analyzer<span>Analisis Saham BEI</span></div>
+        </div>
+
+        <nav class="nav">
+            <button class="nav-btn active" data-view="dashboard">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Dashboard
+            </button>
+            <button class="nav-btn" data-view="chart">
+                <svg viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+                Chart & Teknikal
+            </button>
+            <button class="nav-btn" data-view="screener">
+                <svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                Screener
+            </button>
+            <button class="nav-btn" data-view="fundamental">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+                Fundamental
+            </button>
+            <button class="nav-btn" data-view="watchlist">
+                <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                Watchlist
+            </button>
+            <button class="nav-btn" data-view="alert">
+                <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                Alert Harga
+                <span class="nav-badge hide" id="alertBadge">0</span>
+            </button>
+        </nav>
+
+        <div class="market-status" id="marketStatus">
+            <div class="status-dot"></div>
+            <div>
+                <strong>Pasar Saham</strong>
+                <span id="marketStatusText">Memuat…</span>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="disclaimer">Data untuk edukasi. Bukan rekomendasi beli/jual.</div>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+
+        <!-- TOP BAR -->
+        <header class="topbar">
+            <div class="search-box">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="searchInput" placeholder="Cari saham… (BBCA, TLKM, ASII)" autocomplete="off">
+                <div class="search-results" id="searchResults"></div>
+            </div>
+            <div class="topbar-right">
+                <div class="data-badge" id="dataBadge" title="Status data pasar">
+                    <span class="data-dot load" id="dataDot"></span>
+                    <div class="data-meta">
+                        <span class="data-label" id="dataLabel">Memuat…</span>
+                        <span class="data-updated" id="dataUpdated"></span>
+                    </div>
+                    <button class="data-refresh" id="dataRefresh" title="Perbarui data">⟳</button>
+                </div>
+                <div class="ihsg-badge" id="ihsgBadge">
+                    <span class="ihsg-label">IHSG</span>
+                    <span class="ihsg-value" id="ihsgValue">—</span>
+                    <span class="ihsg-change" id="ihsgChange">—</span>
+                </div>
+                <div class="clock" id="clock">--:--:--</div>
+            </div>
+        </header>
+
+        <!-- ===== VIEW: DASHBOARD ===== -->
+        <section class="view active" id="view-dashboard">
+
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-label">IHSG (JCI)</div>
+                    <div class="stat-value" id="statIhsg">—</div>
+                    <div class="stat-change" id="statIhsgChg">—</div>
+                    <canvas id="ihsgSpark" height="50"></canvas>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Nilai Transaksi</div>
+                    <div class="stat-value" id="statValue">—</div>
+                    <div class="stat-sub">Rp · hari ini</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Volume</div>
+                    <div class="stat-value" id="statVolume">—</div>
+                    <div class="stat-sub">miliar saham</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Market Breadth</div>
+                    <div class="stat-value"><span class="up" id="statAdv">0</span> <span class="sep">/</span> <span class="down" id="statDec">0</span></div>
+                    <div class="stat-sub">Naik / Turun</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-head">
+                        <h3>Pergerakan IHSG (30 Hari)</h3>
+                        <div class="chip">Indeks</div>
+                    </div>
+                    <div class="chart-wrap"><canvas id="ihsgLine"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-head">
+                        <h3>Sektor — Performa Hari Ini</h3>
+                        <div class="chip">IDX-IC</div>
+                    </div>
+                    <div class="chart-wrap"><canvas id="sectorChart"></canvas></div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-head">
+                        <h3>Top Gainer</h3>
+                        <button class="link-btn" data-nav="screener">Lihat semua →</button>
+                    </div>
+                    <div class="mini-list" id="topGainer"></div>
+                </div>
+                <div class="card">
+                    <div class="card-head">
+                        <h3>Top Loser</h3>
+                        <button class="link-btn" data-nav="screener">Lihat semua →</button>
+                    </div>
+                    <div class="mini-list" id="topLoser"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h3>Rekomendasi Hari Ini</h3>
+                    <div class="reco-head-right">
+                        <span class="chip" id="recoMode">Beli Pagi · Jual Sore</span>
+                        <button class="link-btn" data-nav="screener">Screener lengkap →</button>
+                    </div>
+                </div>
+                <div class="reco-grid" id="recoGrid"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h3>Ringkasan Saham Unggulan (LQ45)</h3>
+                    <span class="chip">Klik baris untuk analisis</span>
+                </div>
+                <div class="table-wrap">
+                    <table class="table" id="dashboardTable">
+                        <thead>
+                            <tr>
+                                <th>Kode</th><th>Nama</th><th class="num">Harga</th><th class="num">± %</th>
+                                <th class="num">Vol (ln)</th><th class="num">Val (M)</th><th class="num">PBV</th><th class="num">PER</th><th class="num">RSI</th><th>Sinyal</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== VIEW: CHART ===== -->
+        <section class="view" id="view-chart">
+            <div class="chart-toolbar">
+                <div class="ticker-info">
+                    <div class="ticker-code" id="chartTicker">BBCA</div>
+                    <div class="ticker-name" id="chartName">Bank Central Asia</div>
+                    <div class="ticker-price">
+                        <span id="chartPrice">—</span>
+                        <span id="chartChg">—</span>
+                    </div>
+                </div>
+                <div class="toolbar-controls">
+                    <div class="seg" id="tfSeg">
+                        <button data-tf="1D">1H</button>
+                        <button data-tf="1W">1M</button>
+                        <button data-tf="1M" class="active">1B</button>
+                        <button data-tf="3M">3B</button>
+                        <button data-tf="1Y">1T</button>
+                    </div>
+                    <select id="chartType">
+                        <option value="candle">Candlestick</option>
+                        <option value="line">Line</option>
+                        <option value="area">Area</option>
+                    </select>
+                    <select id="maPeriod">
+                        <option value="0">Tanpa MA</option>
+                        <option value="5">MA 5</option>
+                        <option value="20" selected>MA 20</option>
+                        <option value="50">MA 50</option>
+                        <option value="200">MA 200</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card chart-main-card">
+                <div id="mainChart" class="main-chart"></div>
+                <div id="volumeChart" class="volume-chart"></div>
+            </div>
+
+            <div class="grid-3">
+                <div class="card">
+                    <div class="card-head"><h3>RSI (14)</h3><span class="chip" id="rsiChip">—</span></div>
+                    <div class="mini-chart-box"><div id="rsiChart"></div></div>
+                </div>
+                <div class="card">
+                    <div class="card-head"><h3>MACD</h3><span class="chip" id="macdChip">—</span></div>
+                    <div class="mini-chart-box"><div id="macdChart"></div></div>
+                </div>
+                <div class="card">
+                    <div class="card-head"><h3>Bollinger Bands</h3><span class="chip" id="bbChip">—</span></div>
+                    <div class="mini-chart-box"><div id="bbChart"></div></div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-head"><h3>Ringkasan Teknikal</h3></div>
+                    <div class="tech-summary" id="techSummary"></div>
+                </div>
+                <div class="card">
+                    <div class="card-head"><h3>Statistik Harga</h3></div>
+                    <div class="stat-list" id="priceStats"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== VIEW: SCREENER ===== -->
+        <section class="view" id="view-screener">
+            <div class="card">
+                <div class="card-head">
+                    <h3 id="screenerTitle">Screener Saham IDX</h3>
+                    <span class="chip" id="screenerCount">—</span>
+                </div>
+
+                <div class="mode-seg" id="screenerMode">
+                    <button class="active" data-mode="general">Screener Umum</button>
+                    <button data-mode="pagi">☀ Beli Pagi · Jual Sore</button>
+                    <button data-mode="sore">🌙 Beli Sore · Jual Pagi</button>
+                </div>
+
+                <div class="window-row hide" id="windowRow">
+                    <span class="window-label">Hitung sinyal s/d jam</span>
+                    <div class="win-chips" id="winChips"></div>
+                    <span class="window-note" id="windowNote"></span>
+                </div>
+
+                <div class="signal-summary hide" id="signalSummary"></div>
+
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Sektor</label>
+                        <select id="fSector"><option value="">Semua</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Maks. PER</label>
+                        <input type="number" id="fPerMax" placeholder="maks 30" min="0">
+                    </div>
+                    <div class="filter-group">
+                        <label>Min. PBV</label>
+                        <input type="number" id="fPbvMin" placeholder="min 0" min="0" step="0.1">
+                    </div>
+                    <div class="filter-group">
+                        <label>Max. PBV</label>
+                        <input type="number" id="fPbvMax" placeholder="maks 10" min="0" step="0.1">
+                    </div>
+                    <div class="filter-group">
+                        <label>RSI Maks</label>
+                        <input type="number" id="fRsiMax" placeholder="maks 70" min="0" max="100">
+                    </div>
+                    <div class="filter-group">
+                        <label>Min. Δ% Hari</label>
+                        <input type="number" id="fChgMin" placeholder="-5" step="0.1">
+                    </div>
+                    <div class="filter-group">
+                        <label>Sinyal</label>
+                        <select id="fSignal">
+                            <option value="">Semua</option>
+                            <option value="Bullish">Bullish / BELI</option>
+                            <option value="Bearish">Bearish / JUAL</option>
+                            <option value="Netral">Netral / TAUNGGU</option>
+                        </select>
+                    </div>
+                    <div class="filter-group day-only hide" id="fgScore">
+                        <label>Min. Skor Sinyal</label>
+                        <input type="number" id="fScoreMin" min="0" max="100" placeholder="mis. 60">
+                    </div>
+                    <div class="filter-group day-only hide" id="fgRr">
+                        <label>Min. Risk:Reward</label>
+                        <input type="number" id="fRrMin" step="0.1" min="0" placeholder="mis. 1.5">
+                    </div>
+                    <button class="btn-reset" id="fReset">Reset</button>
+                </div>
+
+                <div class="table-wrap" id="screenerTableWrap">
+                    <table class="table" id="screenerTable">
+                        <thead>
+                            <tr>
+                                <th>Kode</th><th>Nama</th><th>Sektor</th><th class="num">Harga</th><th class="num">Δ%</th>
+                                <th class="num">PER</th><th class="num">PBV</th><th class="num">EPS</th><th class="num">Harga Wajar</th><th class="num">RSI</th><th class="num">MA20</th><th>Sinyal</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="table-wrap hide" id="dayTableWrap">
+                    <table class="table" id="dayTable">
+                        <thead>
+                            <tr>
+                                <th>Kode</th><th>Nama</th><th>Sinyal</th><th class="num">Skor</th><th class="num">Harga</th>
+                                <th class="num">Zona Masuk</th><th class="num">Target</th><th class="num">Stop</th><th class="num">R:R</th>
+                                <th>Batas Keluar</th><th>Kondisi Keluar</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="day-legend hide" id="dayLegend">
+                    <span><b>Zona Masuk</b> = rentang harga beli/jual di sekitar VWAP &amp; support</span>
+                    <span><b>Target</b> = harga jual (take profit) · <b>Stop</b> = batas rugi / invalidasi</span>
+                    <span><b>R:R</b> = rasio imbal/risiko · klik baris untuk rencana lengkap</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== VIEW: FUNDAMENTAL ===== -->
+        <section class="view" id="view-fundamental">
+            <div class="fund-picker">
+                <label>Pilih emiten:</label>
+                <select id="fundTicker"></select>
+            </div>
+
+            <div class="stat-grid" id="fundStats">
+                <div class="stat-card"><div class="stat-label">Harga</div><div class="stat-value" id="fPrice">—</div><div class="stat-sub" id="fPriceSub">—</div></div>
+                <div class="stat-card"><div class="stat-label">Kapitalisasi</div><div class="stat-value" id="fMcap">—</div><div class="stat-sub">Rp T</div></div>
+                <div class="stat-card"><div class="stat-label">PER</div><div class="stat-value" id="fPer">—</div><div class="stat-sub">Price / Earning</div></div>
+                <div class="stat-card"><div class="stat-label">PBV</div><div class="stat-value" id="fPbv">—</div><div class="stat-sub">Price / Book</div></div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-head"><h3>Rasio Keuangan</h3></div>
+                    <div class="ratio-grid" id="ratioGrid"></div>
+                </div>
+                <div class="card">
+                    <div class="card-head"><h3>Valuasi vs Sektor</h3></div>
+                    <div class="chart-wrap"><canvas id="valuationChart"></canvas></div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-head"><h3>Kinerja Laba (4T)</h3></div>
+                    <div class="chart-wrap"><canvas id="earningsChart"></canvas></div>
+                </div>
+                <div class="card">
+                    <div class="card-head"><h3>Skor Analisis</h3></div>
+                    <div class="score-wrap">
+                        <div class="score-ring" id="scoreRing">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                                <circle class="ring-fg" cx="60" cy="60" r="52" id="scoreArc"/>
+                            </svg>
+                            <div class="score-num" id="scoreNum">—</div>
+                        </div>
+                        <div class="score-breakdown" id="scoreBreakdown"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== VIEW: WATCHLIST ===== -->
+        <section class="view" id="view-watchlist">
+            <div class="card">
+                <div class="card-head">
+                    <h3>Watchlist Saya</h3>
+                    <span class="chip" id="watchCount">0 saham</span>
+                </div>
+                <div class="watch-add">
+                    <input type="text" id="watchInput" placeholder="Tambah kode saham (mis. BBCA)" list="watchList">
+                    <datalist id="watchList"></datalist>
+                    <button class="btn-primary" id="watchAddBtn">Tambah</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="table" id="watchTable">
+                        <thead>
+                            <tr>
+                                <th>Kode</th><th>Nama</th><th class="num">Harga</th><th class="num">Δ%</th>
+                                <th class="num">RSI</th><th>Sinyal</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="watchEmpty">
+                    Watchlist kosong. Tambahkan saham favoritmu.
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== VIEW: ALERT HARGA ===== -->
+        <section class="view" id="view-alert">
+            <div class="card">
+                <div class="card-head">
+                    <h3>Buat Alert Harga</h3>
+                    <button class="btn-ghost" id="notifBtn">Aktifkan Notifikasi Browser</button>
+                </div>
+                <div class="alert-form">
+                    <div class="af-field">
+                        <label>Kode Saham</label>
+                        <input type="text" id="alertCode" placeholder="BBCA" list="alertList" autocomplete="off">
+                        <datalist id="alertList"></datalist>
+                    </div>
+                    <div class="af-field">
+                        <label>Kondisi</label>
+                        <select id="alertDir">
+                            <option value="above">Harga naik ke atas (≥)</option>
+                            <option value="below">Harga turun ke bawah (≤)</option>
+                        </select>
+                    </div>
+                    <div class="af-field">
+                        <label>Harga Target (Rp)</label>
+                        <input type="number" id="alertTarget" placeholder="6000" min="1" step="1">
+                    </div>
+                    <div class="af-field af-grow">
+                        <label>Catatan (opsional)</label>
+                        <input type="text" id="alertNote" placeholder="mis. tembus resistensi">
+                    </div>
+                    <button class="btn-primary" id="alertAddBtn">Tambah Alert</button>
+                </div>
+                <div class="alert-hint" id="alertHint">Pilih saham, tentukan harga target, alert akan muncul saat harga menyentuh level tersebut.</div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h3>Daftar Alert</h3>
+                    <span class="chip" id="alertCount">0 alert</span>
+                </div>
+                <div class="table-wrap">
+                    <table class="table" id="alertTable">
+                        <thead>
+                            <tr>
+                                <th>Kode</th><th>Nama</th><th>Kondisi</th><th class="num">Target</th>
+                                <th class="num">Harga Kini</th><th class="num">Jarak</th><th>Status</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="alertEmpty">
+                    Belum ada alert. Buat alert pertamamu di atas.
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- MODAL DETAIL -->
+<div class="modal-backdrop" id="modal">
+    <div class="modal">
+        <div class="modal-head">
+            <div>
+                <div class="modal-code" id="mCode">—</div>
+                <div class="modal-name" id="mName">—</div>
+            </div>
+            <button class="modal-close" id="mClose">✕</button>
+        </div>
+        <div class="modal-body" id="mBody"></div>
+        <div class="modal-foot">
+            <button class="btn-ghost" id="mPlanBtn">Rencana Trading</button>
+            <button class="btn-ghost" id="mWatchBtn">☆ Watchlist</button>
+            <button class="btn-primary" id="mAnalyzeBtn">Buka Chart →</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RENCANA TRADING -->
+<div class="modal-backdrop" id="planModal">
+    <div class="modal modal-wide">
+        <div class="modal-head">
+            <div>
+                <div class="modal-code" id="pCode">—</div>
+                <div class="modal-name" id="pName">—</div>
+            </div>
+            <div class="p-head-right">
+                <span class="pill" id="pSignal">—</span>
+                <span class="chip" id="pModeChip">—</span>
+            </div>
+            <button class="modal-close" id="pClose">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="p-hero">
+                <div>
+                    <div class="p-hero-k">Harga pada jam analisis</div>
+                    <div class="p-price" id="pPrice">—</div>
+                </div>
+                <div class="p-hero-score">
+                    <div class="p-hero-k">Keyakinan sinyal</div>
+                    <div class="p-score-wrap">
+                        <span class="p-score" id="pScore">—</span>
+                        <div class="score-bar big"><i id="pScoreBar" style="width:0%"></i></div>
+                    </div>
+                </div>
+                <div class="p-asof" id="pAsof">—</div>
+            </div>
+
+            <div class="plan-levels" id="pLevels"></div>
+
+            <div class="plan-pivots" id="pPivots"></div>
+
+            <div class="plan-chart-head">
+                Grafik intraday 15-menit + level rencana
+                <span class="chip" id="pCut"></span>
+            </div>
+            <div class="plan-chart-box"><div id="planChart"></div></div>
+
+            <div class="plan-cols">
+                <div class="plan-col">
+                    <h4 id="pEnterTitle">✔ Kapan Masuk</h4>
+                    <ul class="reason-list" id="pEnter"></ul>
+                </div>
+                <div class="plan-col">
+                    <h4 id="pExitTitle">⏱ Kapan Keluar</h4>
+                    <ul class="reason-list" id="pExit"></ul>
+                </div>
+            </div>
+
+            <div class="plan-fair" id="pFair"></div>
+            <div class="plan-size" id="pSize"></div>
+            <div class="plan-note" id="pNote"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" id="pWatchBtn">☆ Watchlist</button>
+            <button class="btn-ghost" id="pAlertBtn">🔔 Set Alert</button>
+            <button class="btn-primary" id="pChartBtn">Buka Chart →</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/indicators.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/trade.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
