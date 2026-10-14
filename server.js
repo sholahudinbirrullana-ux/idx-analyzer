@@ -10,10 +10,28 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const url = require("url");
+const os = require("os");
+const { exec } = require("child_process");
 
-const PORT = process.env.PORT || 8090;
+/* deteksi mode executable (Node SEA) */
+let SEA = null;
+try { SEA = require("node:sea"); } catch (e) { SEA = null; }
+const IS_SEA = !!(SEA && SEA.isSea());
+
+/* aset tertanam hasil bundling (dibuat oleh build-exe.sh) */
+let ASSETS = null;
+try { ASSETS = require("./embedded-assets.js"); } catch (e) { ASSETS = null; }
+
+const PORT = parseInt(process.env.PORT, 10) || 8090;
 const ROOT = __dirname;
-const CACHE_DIR = path.join(ROOT, ".cache");
+const CACHE_DIR = process.env.CACHE_DIR ||
+    (IS_SEA ? path.join(os.homedir(), ".idx-analyzer-cache") : path.join(ROOT, ".cache"));
+
+/* daftar aset statis yang ditanam di executable (dipakai saat berjalan sebagai SEA) */
+const EMBEDDED_ASSETS = [
+    "index.html", "css/style.css",
+    "js/data.js", "js/indicators.js", "js/charts.js", "js/trade.js", "js/app.js"
+];
 const YF_HOST = "query1.finance.yahoo.com";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
            "(KHTML, like Gecko) Chrome/122.0 Safari/537.36";
@@ -287,6 +305,22 @@ const server = http.createServer(async (req, res) => {
     /* ---- static ---- */
     let file = pathname === "/" ? "/index.html" : pathname;
     file = path.normalize(file).replace(/^(\.\.[\/\\])+/, "");
+    const assetKey = file.replace(/^\//, "");
+
+    /* mode executable/bundle: sajikan dari aset yang ditanam */
+    if (IS_SEA || ASSETS) {
+        let data = null;
+        if (IS_SEA) {
+            try { if (SEA.getAssetKeys().includes(assetKey)) data = SEA.getAsset(assetKey, "utf8"); } catch (e) {}
+        }
+        if (data == null && ASSETS && Object.prototype.hasOwnProperty.call(ASSETS, assetKey)) {
+            data = ASSETS[assetKey];
+        }
+        if (data == null) { res.statusCode = 404; return res.end("Not found"); }
+        res.setHeader("Content-Type", MIME[path.extname(assetKey).toLowerCase()] || "application/octet-stream");
+        return res.end(data);
+    }
+
     const full = path.join(ROOT, file);
     if (!full.startsWith(ROOT)) { res.statusCode = 403; return res.end("Forbidden"); }
     fs.readFile(full, (err, data) => {
@@ -296,11 +330,36 @@ const server = http.createServer(async (req, res) => {
     });
 });
 
-server.listen(PORT, () => {
-    cloadDisk();
-    console.log("\n  IDX Analyzer berjalan:");
-    console.log("  → http://localhost:" + PORT + "\n");
-    console.log("  Mode fetch: " + FETCH_MODE + " (env FETCH_MODE=direct|jina|auto)");
-    console.log("  Proxy data pasar: /api/chart , /api/batch , /api/status");
-    console.log("  (tutup dengan Ctrl+C)\n");
-});
+function openBrowser(u) {
+    const cmd = process.platform === "darwin" ? ["open", u]
+        : process.platform === "win32" ? ["cmd", "/c", "start", "", u]
+        : ["xdg-open", u];
+    try { exec(cmd[0] + " " + cmd.slice(1).map(a => '"' + a + '"').join(" "), () => {}); } catch (e) {}
+}
+
+function start(port, attempts = 0) {
+    server.once("error", e => {
+        if (e.code === "EADDRINUSE" && attempts < 12) {
+            start(port + 1, attempts + 1);
+        } else {
+            console.error("\n  Gagal menjalankan server: " + e.message + "\n");
+            process.exit(1);
+        }
+    });
+    server.listen(port, () => {
+        cloadDisk();
+        const u = "http://localhost:" + port;
+        console.log("\n  ┌───────────────────────────────────────────────┐");
+        console.log("  │   IDX Analyzer — Analisis & Screener Saham BEI  │");
+        console.log("  └───────────────────────────────────────────────┘");
+        console.log("   Buka di browser : " + u);
+        console.log("   Mode data       : " + FETCH_MODE + "  (FETCH_MODE=direct|jina|auto)");
+        console.log("   Data live via   : /api/chart · /api/batch · /api/status");
+        console.log("   Berhenti        : tekan Ctrl+C\n");
+        if (process.env.NO_OPEN !== "1") openBrowser(u);
+    });
+}
+
+start(PORT);
+
+process.on("SIGINT", () => { console.log("\n  Sampai jumpa!\n"); process.exit(0); });
